@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-My name Ilinca Ostahie, candidate at London Business School [MFA](https://www.london.edu/masters-degrees/masters-in-financial-analysis?sc_camp=E6402B8ED1B34D3A80320FD55B304E23&gclid=Cj0KCQjw-uH6BRDQARIsAI3I-UfOH5FInJ3Sug01FeERJoBaPMBTGbdszioovGjJWyXoJ-OrbEGk0A8aAjM5EALw_wcB). I was born and raised in *Beirut* , Lebanon. I have always tried to get out of my comfort zone by exploring new things which led me to my passion in finance.
+My name Ilinca Ostahie, candidate at London Business School [MFA](https://www.london.edu/masters-degrees/masters-in-financial-analysis?sc_camp=E6402B8ED1B34D3A80320FD55B304E23&gclid=Cj0KCQjw-uH6BRDQARIsAI3I-UfOH5FInJ3Sug01FeERJoBaPMBTGbdszioovGjJWyXoJ-OrbEGk0A8aAjM5EALw_wcB). I was born and raised in *Romania*.
 
 ## Exploring My Horizon
 
