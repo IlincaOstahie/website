@@ -1,5 +1,5 @@
 # Site settings
-baseURL = "http://websiteilinca.netlify.app/"
+baseURL = "https://websiteilinca.netlify.app/"
 languageCode = "en-us"
 title = "Ilinca"
 theme = "forty"
