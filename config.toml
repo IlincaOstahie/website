@@ -95,7 +95,7 @@ disqusShortname = ""
       title = "Biography"
       subtitle = "My experience so far"
       image = "ProfilePic.jpeg"
-      url = "blogs/aliquam"
+      url = "blogs/Biography"
 
     [[params.tiles.showcase]]
       title = "Price of a 4-Night Stay in Rio"
