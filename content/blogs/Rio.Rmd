@@ -1,0 +1,1161 @@
+---
+title: "Final Project - City of Rio de Janeiro"
+author: "Group_26"
+date: "13/10/2020"
+slug: "Rio"
+output:
+   html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+---
+# Introduction to the Project
+
+The purpose of this project is to predict the total cost for two people staying 4 nights in Rio using Airbnb. 
+
+The data used in this project is `insideairbnb`. The first stage is to understand the data set, perform necessary modifications, and choose the variables of interest for our regression. 
+
+When the data is ready, we'll perform multiple regressions to arrive to the best model possible. Our goal is to find out the most accurate regression model to explain the independent variable - price for two people staying four nights. Once we have constructed the final model, we will use it to answer our main question.
+
+We believe the approach using data analytics to explain the pricing of properties will be useful for the readers amid of maximizing the value received for their money.  
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE, 
+  warning = FALSE, 
+  tidy=FALSE,     # display code as typed
+  size="small")   # slightly smaller font for code
+options(digits = 3)
+
+# Default figure size
+knitr::opts_chunk$set(
+  fig.width=6.75, 
+  fig.height=6.75,
+  fig.align = "center"
+)
+```
+
+```{r load-libraries, warning = FALSE, echo=FALSE}
+library(tidyverse)  # Load ggplot2, dplyr, and all the other tidyverse packages
+library(mosaic)
+library(ggthemes)
+library(GGally)
+library(readxl)
+library(here)
+library(skimr)
+library(janitor)
+library(broom)
+library(tidyquant)
+library(infer)
+library(openintro)
+library(scales)
+library(vroom)
+library(gapminder)
+library(leaflet)
+library(jtools)
+library(devtools)
+library(car)
+library(huxtable)
+library(ggfortify)
+library(gridExtra)
+library(tidyverse)
+library(caret)
+library(leaps)
+```
+
+The first step is to download our dataset about the Airbnb listings available in the Marvelous City: Rio de Janeiro.
+
+```{r, warnings = FALSE, cache=TRUE}
+listings <- vroom("http://data.insideairbnb.com/brazil/rj/rio-de-janeiro/2020-06-19/data/listings.csv.gz")
+```
+
+# Exploratory Data Analysis
+
+
+## How many variables/columns? How many rows/observations? 
+
+First, we want to take a look at the raw data using the function "glimpse"
+
+```{r}
+# Exploring raw data
+glimpse(listings)
+
+```
+
+It is possible to observe that initially we have 35701 observations (rows) of 106 variables (columns).
+
+The type of the data analytic question is causality as we aim to understand which factors will cause a price to vary for a certain listing in the city of Rio.
+
+We will consider our work a success if we can determine a 95% confidence interval for an imaginary situation to rent an Airbnb in Rio for four nights. 
+
+From the data above, it seems that we can assume the question can be answered with the following data. Indeed, the most obvious potential factors are included and additional variables are present to explore multiple hypothesis. 
+
+
+
+## Which variables are numbers?
+
+Before using skim to observe the type of data that we have, we decided to create a copy of our original dataset to work on. 
+
+The business application of our project can be of great help in case of any change in the dataframe that we would like to undo in the future.
+
+```{r}
+# Creating a copy of our dataset to work on
+working_listings <- listings
+# We will now only be working on 'working_listings'
+```
+
+Now we use skim to take a closer look at our dataframe.
+
+```{r}
+skim(working_listings)
+```
+
+From the "skim" function we observe that we have 39 numeric, 46 character, 5 date and 16 logical variables. Totaling the 106 columns that we have previously mentioned.
+
+After taking a closer look at the numeric variables that will be of great use in the creation of our regression models, we realized that some of them are not presented as numbers. Then we use the function "mutate" combined with "parse_number" to convert these variables to numbers.
+
+In addition to that, we did the something similar to variables that must be characters using the function "mutate" combined with "as_character" to convert them.
+
+```{r, warning = FALSE}
+
+# Setting the character string as numbers for the concerned variables
+working_listings <- working_listings %>% 
+  mutate(price = parse_number(price),
+         weekly_price = parse_number(weekly_price),
+         monthly_price = parse_number(monthly_price),
+         security_deposit = parse_number(security_deposit),
+         cleaning_fee = parse_number(cleaning_fee),
+         extra_people = parse_number(extra_people),
+         
+         # Keeping the variable as % but in dbl format
+         host_response_rate = parse_number(host_response_rate),
+         host_acceptance_rate = parse_number(host_acceptance_rate))
+
+
+# Setting the needed num variables as character because they are identification variables
+working_listings <- working_listings %>%  
+  mutate(id = as.character(id), 
+         jurisdiction_names = as.character(jurisdiction_names), 
+         host_id = as.character(host_id),
+         scrape_id = as.character(scrape_id))
+```
+
+After converting original data into the format we want, we pave the way for data analysis in future.
+
+
+## Which are categorical or factor variables?
+
+In order to answer this question, we must know the number of unique values for each variable.
+
+```{r}
+# Creation of new dataframe
+categorical_factor_variables <- 
+  working_listings %>%
+  
+  #This next column calculates the number of unique observations of each variable
+  summarise_each(funs(n_distinct))  %>%  
+  t() %>%  
+  as_tibble( rownames = "Variable") %>% 
+  #We will use the variables that have less than 100 and more than 2 unique values
+  filter(V1 <= 100, V1 > 2) %>% 
+  arrange(desc(V1)) 
+
+# Display the variables
+categorical_factor_variables
+
+
+```
+
+
+Since there are variables that are in percentages, we decided to label variables with less than 101 and more than 2 unique values as categorical. After this first filter, we have to check if they are factors
+
+
+```{r}
+#Now we select only the columns that apply to our restrictions 
+working_listings %>% select(categorical_factor_variables$Variable) %>% head()
+
+```
+ 
+
+The following variables will be considered as categorical:
+- room_type
+- bed_type
+- cancellation_policy
+- neighborhood_cleansed
+- neighborhood
+- property_type
+
+We will now convert these columns to factors using the function "mutate" combined with "as.factor".
+
+```{r}
+
+# Converting to factor
+working_listings <-
+  working_listings %>% 
+  mutate(
+    room_type = as.factor(room_type),
+    bed_type = as.factor(bed_type),
+    cancellation_policy = as.factor(cancellation_policy),
+    neighbourhood_cleansed = as.factor(neighbourhood_cleansed),
+    neighbourhood = as.factor(neighbourhood))
+
+```
+
+
+## What are we going to do with NAs?
+
+Before selecting and dropping the NAs that we have in our dataset, we have observed that three variables have special conditions that cause a large number of missing values. These are:
+
+1. Cleaning_fee
+2. Security_deposit
+3. Reviews_per_month
+
+Now, we take a closer look at the cleaning fee. 
+
+```{r}
+# Skimming the variable cleaning_fee
+skim(working_listings$cleaning_fee)
+```
+We see that we are missing **11,584** values for the variable `cleaning_fee`. It could explained by different hypothesis. 
+
+1. The cleaning fee is included in the price by the host. This could be done on purpose to be showcased if a user is filtering out the listings with some cleaning fees. 
+2. The tenants might be responsible for the cleaning. Therefore, the host would not charge a cleaning fee for the rental period. 
+
+The conclusion remains the same for both hypothesis, the `cleaning_fee` is none existent in each case and thus we will set the `N/As` as `zero`.
+
+Now, we take a closer look at security_deposit.
+
+```{r}
+# Skimming the variable security_deposit
+skim(working_listings$security_deposit)
+```
+
+The same logic applied to `cleaning_fee` will be applied to the variable `security_deposit` for the same reasons.
+
+```{r}
+# Setting NA's as zero for the variable 'cleaning_fee'
+working_listings <- working_listings %>%
+  mutate(cleaning_fee = case_when(
+    is.na(cleaning_fee) ~ 0, 
+    TRUE ~ cleaning_fee
+  ))
+
+# Setting NA's as zero for the variable 'security_deposit'
+working_listings <- working_listings %>%
+  mutate(security_deposit = case_when(
+    is.na(security_deposit) ~ 0, 
+    TRUE ~ security_deposit
+  ))
+  
+```
+
+
+Now, we are going to do the same analysis for the variable `reviews_per_month`.
+
+```{r}
+# Skimming the variable reviews_per_month
+skim(working_listings$reviews_per_month)
+```
+We see that we are missing **8,743** values for the variable `reviews_per_month`. The most relevant hypothesis to explain this is: 
+
+1. The listings in Airbnb with values missing for this variable haven't been much used lately. Furthermore, the reviews are old and do not represent the real condition of the property or the service provided by the host.
+
+This way, we decided to change this missing values for zero, as they are not significant.
+
+```{r}
+# Setting NA's as zero for the variable 'cleaning_fee'
+working_listings <- working_listings %>%
+  mutate(reviews_per_month = case_when(
+    is.na(reviews_per_month) ~ 0, 
+    TRUE ~ reviews_per_month))
+```
+
+
+After dealing with the NAs in `cleaning_fee`, `security_deposit` and `reviews_per_month`, let's take a look on the other relevant variables for our model with a significant number of NAs and decide what we will do about it:
+
+
+- `host_acceptance_rate`: 7368 missing values. We believe this is because the host has not yet rented its property advertised on Airbnb, so we will keep this.
+
+- `bathrooms`: 56 missing values. As they are only a few cases, we will remove this missing data.
+
+- `bedrooms`: 61 missing values. As they are only a few cases, we will remove this missing data.
+
+- `beds`: 277 missing values. As they are only a few cases, we will remove this missing data.
+
+- `review_scores_rating`: 9402 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_accuracy`: 9410 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_cleanliness`: 9408 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_checkin`: 9411 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_communication`: 9410 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_location`: 9410 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `review_scores_value`: 9410 missing values. We believe this is because the host has never received a review on Airbnb, so we will keep these values.
+
+- `host_is_superhost`: 5 missing values. As they are only a few cases, we will remove this missing data.
+
+```{r}
+#Now we delete the missing values of the variables presented above
+working_listings <-
+  working_listings %>% 
+  drop_na(
+    bathrooms,
+    bedrooms,
+    beds,
+    host_is_superhost)
+```
+
+
+## What are the property types?
+
+Since there are many property types in the dataset and we want to compare similar properties, we will take the top four types and present the rest as "Other" because these distinctions will not be valuable to our regression since the other types are not relevant.
+
+```{r}
+
+# Sorting the property types to identify the four most recurrent ones
+working_listings %>% 
+  group_by(property_type) %>% 
+  summarize(n = n()) %>% 
+  arrange(desc(n))
+
+# Selecting the four most relevant types of property and setting the rest as other
+working_listings <- working_listings %>%
+  mutate(prop_type_simplified = case_when(
+    property_type %in% c("Apartment","House", "Condominium","Loft") ~ property_type, 
+    TRUE ~ "Other"
+  ))
+  
+# Checking our manipulation
+working_listings %>%
+  count(property_type, prop_type_simplified) %>%
+  arrange(desc(n))
+```
+
+From the first step we see the four most common property types are: Apartment, House, Condominium, and Loft that account for the majority. To simplify our regression, we re-classify every other minority property type as 'other' 
+
+## What are the mininum nights?
+
+Similarly as done with the property types, as our objective is to predict the price of 4 nights of Airbnb in Rio de Janeiro, we want to first see what are the most common number of minimum nights of the listings in the city.
+
+```{r}
+working_listings %>%
+  count(minimum_nights) %>%
+  arrange(desc(n))
+```
+
+There are some values that are relevant that were unexpected such as 6 and 30 days, which won't be used since we have to apply a filter for those listing with less than 4 days as the minimum to rent the Airbnb.
+
+
+```{r}
+# Taking listing with minimu nights under 4 nights
+working_listings <- working_listings %>% 
+  filter(minimum_nights <= 4)
+# Checking our modification
+working_listings %>%
+  count(minimum_nights) %>%
+  arrange(desc(n))
+```
+
+Now we have filtered the minimum nights to 1, 2, 3, 4 for our analysis.
+
+## What are the most relevant neighborhoods? 
+
+Now, as we want to do our analysis within the most relevant neighborhoods of Rio de Janeiro in terms of number of Airbnb listing, we will select the most relevant to work on.
+
+```{r}
+# Listing neighbourhouds
+working_listings %>%
+  count(neighbourhood_cleansed) %>%
+  arrange(desc(n))
+
+```
+
+There are 24 most relevant neighborhoods on Airbnb for Rio de Janeiro. We will filter for those 24 neighborhoods and then address a city region for each.
+
+```{r}
+# Taking neighborhoods with at least 150 listings
+list_of_neighborhoods <- working_listings %>% 
+  count(neighbourhood_cleansed) %>% 
+  filter(n > 150)
+
+# Setting a new variable with our clean neighborhood
+working_listings <- working_listings %>%
+  filter(neighbourhood_cleansed %in% list_of_neighborhoods$neighbourhood_cleansed)
+  
+working_listings %>%
+  count(neighbourhood_cleansed) %>%
+  arrange(desc(n))
+
+```
+Now we have **24,272** listings in 24 different neighborhoods of Rio de Janeiro.
+
+Let's already cluster these neighborhoods in geographic zones for a later analysis. We discard the other as they have a very limited number of listings. 
+
+```{r}
+
+working_listings <- working_listings %>% 
+  mutate(
+    neighbourhood_simplified = case_when(
+    neighbourhood_cleansed=="Copacabana"~ "South",
+    neighbourhood_cleansed== "Barra da Tijuca"~ "West",
+    neighbourhood_cleansed== "Ipanema"~ "South",
+    neighbourhood_cleansed== "Jacarepaguá"~ "West", 
+    neighbourhood_cleansed== "Botafogo"~ "South",
+    neighbourhood_cleansed== "Leblon"~ "South",
+    neighbourhood_cleansed== "Recreio dos Bandeirantes"~ "West",
+    neighbourhood_cleansed== "Santa Teresa"~ "Center",
+    neighbourhood_cleansed== "Centro"~ "Center",
+    neighbourhood_cleansed== "Flamengo" ~ "South", 
+    neighbourhood_cleansed== "Tijuca" ~ "North", 
+    neighbourhood_cleansed== "Laranjeiras" ~ "South",
+    neighbourhood_cleansed== "Leme" ~ "South" , 
+    neighbourhood_cleansed== "Catete" ~ "South", 
+    neighbourhood_cleansed== "Lagoa" ~ "South",
+    neighbourhood_cleansed== "Glória" ~ "South",
+    neighbourhood_cleansed== "Jardim Botânico" ~ "South",
+    neighbourhood_cleansed== "Humaitá" ~ "South",
+    neighbourhood_cleansed== "Gávea" ~ "South",
+    neighbourhood_cleansed== "Vila Isabel" ~ "North",
+    neighbourhood_cleansed== "Maracanã" ~ "North",
+    neighbourhood_cleansed== "São Conrado" ~ "South",
+    neighbourhood_cleansed== "Freguesia (Jacarepaguá)" ~ "West",
+    neighbourhood_cleansed== "Taquara" ~ "West"))
+
+working_listings <- working_listings %>% 
+  mutate(neighbourhood_simplified = as.factor(neighbourhood_simplified))
+skim(working_listings$neighbourhood_simplified)
+
+
+# Removing NAs
+working_listings<-working_listings %>% 
+  filter(neighbourhood_simplified != is.na(neighbourhood_simplified))
+
+# Checking there are no more NAs by counting 
+working_listings %>%
+  count(neighbourhood_simplified) %>%
+  arrange(desc(n))
+```
+
+
+## How is the price distribution?
+
+In addition to the filters and mutations on the dataset, it is important to understand our most relevant variable "price" to understand if it's necessary to perform any filter on it.
+
+Firstly we use the function "favstats" to have a good overview on this variable.
+
+```{r}
+
+favstats(working_listings$price)
+
+```
+
+It's possible to observe that the max price is very distant from the mean. Then, we will plot a histogram to evaluate the price of a listing that will already be considered as a outlier.
+
+```{r}
+
+# Plotting a histogram
+ggplot(working_listings, 
+       aes(
+         x = price)) + 
+  geom_histogram(bins=100) +
+  scale_x_log10(labels= dollar) +
+  labs(
+    title = "Distribution by price of the listings in Rio",
+    y = " Number of listing",
+    x = "Price"
+  )
+
+```
+
+We decided to cut our price in $2000, as there are many outliers whose liting price don't really represent what we aim to study in our project.
+
+```{r}
+
+#This will filter our dataset with the observations with the variable price as less than $2000
+working_listings <- 
+  working_listings %>% 
+  filter(price <= 2000)
+
+favstats(working_listings$price)
+
+
+#Now we plot again the same histogram to take a look in the new distribution
+ggplot(working_listings, 
+       aes(
+         x = price)) + 
+  geom_histogram(bins=100) +
+  scale_x_log10(labels= dollar)+
+  labs(
+    title = "Distribution by price of the listings in Rio",
+    y = " Number of listing",
+    x = "Price"
+  )
+
+```
+
+We observe that the distribution of the prices in the **22,696** listings available is a little skewed to the left, with a median of **252** dollars per night and a mean of **375** dollars. In addition to that, **75%** of the listings are less than **482** dollars per day which, combined with the visualization of the graph, permits us to take the conclusion that even with the filter done before, there are many listings with very high prices compared to the population.
+
+## What are the most typical types of cancellation policy?
+
+The last analysis in the data is done regarding the type of cancellation policy. We use the same method as the one used for the neighborhoods to understand which are the most typical cancellation policies.
+
+```{r}
+# Listing cancellation policies
+working_listings %>%
+  count(cancellation_policy) %>%
+  arrange(desc(n))
+```
+
+We can see that the first three are the most relevant, but since there are only three other categories, we conclude that there's no need to filter or mutate our dataframe further.
+
+
+```{r}
+# Analyzing the correlation between the most important variables
+working_listings %>% 
+  ggpairs(columns = c("price","extra_people", "square_feet", "host_response_rate", "beds", "bedrooms", "bathrooms", "cleaning_fee", "review_scores_rating", "review_scores_location", "accommodates"))
+```
+As expected, **price** shows a significant correlation with **square feet (0.379), bedrooms (0.442) and bathrooms (0.390)**. This is not surprising as larger places obviously have more bedrooms and bathrooms as well. Larger Airbnbs are also more comfortable and are often shared among more people so that the price per person might not even be so much higher. 
+
+One of the strongest positive correlations we can observe is between **bedrooms** and **bathrooms** with (0.677) which we expected.
+
+It is interesting to see however that the correlation between **bedrooms and bathrooms (0.677)** is higher than between **beds and bedrooms (0.611)**.
+
+Given the high positive correlation from the previous analysis it can already be inferred that the correlation between **bathrooms and beds** is also relatively high with (0.511).
+
+And also along these lines is the positive correlation of **accommodates** with **beds (0.728)**, **bedrooms (0.680)** and **bathrooms (0.551)**. This is also not surprising as the number of people who are looking for an Airbnb usually determines how many beds and bathrooms they are looking for. The correlation between accommodates and beds is actually the highest among all variables.
+
+Another high positive correlation we identified is between the overall rating of the respective Airbnb and its rating for the location. From this correlation we can infer that the location of an Airbnb plays a key role in determining the overall satisfaction of visitors with the places they booked.
+
+Arguably the most interesting positive correlation is identifiable between the **cleaning fee** and the **square feet** with (0.309). It shows that the larger the places are, the more relevant the cleaning fee becomes. We can infer that in smaller places the cleaning fee is likely included in the price while in large prices the owners charge an additional fee for setting the Airbnb up for the next visitors and that the amount of the fee depends on the size of the Airbnb.
+
+
+```{r}
+# Analyzing the relationship between the price and the property type
+
+working_listings %>% 
+  ggpairs(columns = c("price","prop_type_simplified"))
+
+```
+
+```{r}
+# Plotting the previous analysis on a boxplot to make inferences easier
+
+ggplot(working_listings, 
+       aes(
+         x = prop_type_simplified, 
+         y = price)) +
+  geom_boxplot(color=c("dodgerblue3","red1","springgreen4", "orchid4","turquoise1")) +
+    
+  # Adding description
+  labs(title = "Apartments and condimiums are the most expensive property type",
+         subtitle = "Price vs Property type",
+         x = "Property type",
+         y = "Price") +
+  theme_bw() +
+  scale_y_continuous(labels= dollar)
+  
+```
+The median prices are highest for condominiums and apartments. Apartments do however, have a higher quartile range than condominiums. The median for houses, lofts and other is also almost exactly equal but lower than the first two categories. All categories have quite extreme outliers but similar quartile ranges.
+
+THERE ARE LOTS OF APPARTMENTS WITH 0 SQUARE METERS
+```{r}
+# Plotting the correlation between price and square feet in a scatterplot
+
+plot_price_square_feet <- ggplot(
+  data = working_listings,
+  aes(
+    x = square_feet,
+    y = price))+
+  geom_point()+
+  
+  # Squaring the y variable for a better visualization
+  scale_y_sqrt()+
+  labs(
+    title = "Price and size of Airbnbs in Rio are not strongly correlated",
+    subtitle= "Correlation between Price and Airbnb size",
+    x = "Square feet",
+    y = "Price")
+
+
+  plot_price_square_feet
+  
+```
+As already described the correlation between price and square feet is rather strong. From the plot it can be seen that once the square feet go up, the price follows. 
+
+We can observe a high number of cases with zero as square feet value. An hypothesis could be that most owners do not have this information at hand during the registration of their listing.
+
+```{r}
+# Plotting the correlation between bedrooms and bathrooms in a scatterplot
+
+plot_bedrooms_bathrooms <- ggplot(
+  data = working_listings,
+  aes(x = bathrooms,
+      y = bedrooms))+
+  geom_point()+
+  
+  # Setting up axes
+  labs(
+    title = "More bedrooms = more bathrooms",
+    subtitle = "Correlation between bedrooms and bathrooms",
+    x = "Bathrooms",
+    y = "Bedrooms") +
+  geom_smooth(method='lm', formula= y~x)
+
+# Display graph
+plot_bedrooms_bathrooms
+```
+As discussed previously, bedrooms and bathrooms are strongly correlated. This is an expected correlation as visitors who travel in larger groups need more bathrooms for hygienic reasons and to avoid waits.
+
+
+```{r}
+# Plotting the correlation between accommodates and beds in a scatterplot
+
+plot_accommodates_beds <- ggplot(
+  data = working_listings,
+  aes(x = beds,
+      y = accommodates))+
+  geom_point()+
+  
+  # Squaring the y variable for a better visualization
+  scale_y_sqrt()+
+
+  # Setting up axes
+  labs(
+    title = "More people need more beds",
+    subtitle = "Correlation between accommodates and beds",
+    x = "Beds",
+    y = "Accommodates")+
+  geom_smooth(method='lm', formula= y~x)
+
+# Display the plot
+plot_accommodates_beds
+```
+As expected there is a significant correlation between accommodates and beds. The only surprise is that there are some extreme outliers both for beds and people. This might be explained by hotels submitting total numbers or some other error in the dataset.
+
+```{r}
+# Plotting the correlation between square feet and cleaning fee in a scatterplot
+
+plot_squarefeet_cleaningfee <- ggplot(
+  data = working_listings,
+  aes(x = square_feet,
+      y = cleaning_fee))+
+  geom_point()+
+  
+  # Squaring the y variable for a better visualization
+  scale_y_sqrt()+
+
+  labs(
+    title = "The larger the Airbnb the higher the cleaning fee",
+    subtitle = "Correlation between square feet and cleaning fee",
+    x = "Square feet",
+    y = "Cleaning fee")+
+  geom_smooth(method='lm', formula= y~x)
+
+plot_squarefeet_cleaningfee
+
+```
+Larger Airbnbs charge on average higher cleaning fees. For small places the cleaning fee does approach 0 as in those the cleaning fee is most likely included, however the larger the Airbnb is the more important the cleaning becomes as can be seen in the plot above.
+
+# Mapping
+
+To have a better idea of the locations of the listings in our dataset, we will construct a map with all listings. 
+
+We can also admire the perfect location near the ocean of Eduardo's house, one member of our group.
+
+```{r}
+leaflet(working_listings) %>% 
+  addProviderTiles("OpenStreetMap.Mapnik") %>% 
+  addCircleMarkers(lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 1, 
+                   fillColor = "blue", 
+                   fillOpacity = 0.4, 
+                   popup = ~listing_url,
+                   label = ~property_type,
+                   # Clustering to have a better visibility
+                   clusterOptions = markerClusterOptions()) %>%
+  addMarkers(~-43.328539, ~-23.008098, label = "Eduardo's House") 
+```
+```{r}
+price_color <- colorQuantile("Oranges", working_listings$price, n = 5)
+
+
+leaflet(working_listings) %>% 
+  addProviderTiles("OpenStreetMap.Mapnik") %>% 
+  addCircleMarkers(lng = ~longitude, 
+                   lat = ~latitude, 
+                   radius = 1, 
+                   fillColor = "blue", 
+                   fillOpacity = 0.4, 
+                   popup = ~listing_url,
+                   label = ~property_type,
+                   color = ~price_color(price)) %>%
+  addMarkers(~-43.328539, ~-23.008098, label = "Eduardo's House") 
+```
+
+We can observe that listings are more concentrated and more expensive in the two most touristic areas of Rio.
+
+# Regression Analysis
+
+In this section, based on the clean dataset we produced from the previous sections, we perform regression to predict the total costs per four nights in Rio using AirBnb.
+
+```{r}
+
+# Creating the variable price_4_nights
+# It will be our dependant variable in our regression
+working_listings <- working_listings %>% 
+  mutate(price_4_nights = 
+           price*4 +
+           ifelse(guests_included >= 2,0, extra_people) +
+           
+           # We also account other costs such as clean fees into the calculation of total costs 
+           cleaning_fee)
+ 
+```
+
+```{r}
+# We remove the price equal to zero as it can't be true in reality and the logarithm would be infinite
+working_listings <- working_listings %>% 
+  filter(price_4_nights > 0)
+
+# Constructing histogram and density graphs for the price and log(price)
+p1 <- ggplot(working_listings, 
+       aes(x = price_4_nights)) +
+  geom_histogram(
+    fill = "cyan", 
+    colour = "black", 
+    alpha = 0.4) +
+  labs(
+    x = "Price for four nights",
+    y = "Counts") +
+  scale_x_continuous(labels= dollar)
+
+p2 <- ggplot(working_listings, 
+       aes(x = price_4_nights)) +
+  geom_density(fill = "cyan", alpha = 0.4) +
+  labs(
+    x = "Log()", 
+    y = "Density") +
+  scale_x_continuous(labels= dollar)
+
+p3 <- ggplot(working_listings, 
+       aes(x = log(price_4_nights))) +
+  geom_histogram(fill = "cyan", colour = "black", alpha = 0.4) +
+  labs(
+    x = "Log of Price for four nights",
+    y = "Counts")
+
+
+p4 <- ggplot(working_listings, 
+       aes(x = log(price_4_nights))) +
+  geom_density(fill = "cyan", alpha = 0.4)+
+  labs(
+    x = "Log()", 
+    y = "Density")
+
+# Arranging graphs for price together
+grid.arrange(p1, p2, nrow = 1, top = "Distribution of Price")
+
+
+# Arranging graphs for log(price) together
+grid.arrange(p3, p4, nrow = 1, top = "Distribution of log(Price)")
+```
+
+The initial distribution we plotted was visibly positively skewed and therefore we have chosen to take and use further the distribution showing the log of prices for 4 nights as it is more normally distributed, which will provide us with more accurate and informative results in the next steps.
+
+```{r}
+# Creating a variable log(price_4_nights)
+working_listings <- working_listings %>% 
+  mutate(log_price_4_nights = log(price_4_nights))
+```
+
+We are going to run our first model with the most likely influential variables, namely: `prop_type_simplified`, `number_of_reviews`, `review_scores_rating`. 
+
+```{r}
+model1 <- lm(log_price_4_nights ~ 
+               prop_type_simplified + 
+               number_of_reviews + 
+               review_scores_rating, 
+             data = working_listings)
+
+model1 %>% broom::tidy()
+model1 %>% broom::glance()
+```
+First, we'll notice that `review_scores_rating` is not statistically significant in this model, meaning it has no significant impacts on our dependent variable because its p-value is above the threshold of 0.05 and by consequence, the absolute value of its statistic below 2.
+
+Second, we see that the `prop_type_simplified` is significant for each category based on the low p-value below our threshold. The `apartment` category does not show because it is taken as base case in the model.
+
+  *Effects of the type on the price*
+  1. In the case of a condominium, the price increases by 4.65%. 
+  2. In the case of a house, the price decreases by 26.95%.
+  3. In the case of a loft, the price increases by 15.54%.
+  4. In the case of an other type, the price decreases by 19.48%.
+
+Third, we can see that the number of reviews is also statistically significant for our price. 
+
+Fourth, we can see from the R squared that the model explains only 3.03% of the observations.
+
+No we will add the explanatory variable `room_type` in our regression.
+
+```{r}
+model2 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type,
+             data = working_listings)
+
+model2 %>% broom::tidy()
+model2 %>% broom::glance()
+```
+We can see in our `model2` that the `room_type` is a significant predictor of the price explored. 
+In this second model, the `review_scores_rating` is significant.
+The R-squared has significantly improved compared to model1. Indeed, our model explains now 24.9% of the observations.
+
+## Further questions to explore
+
+Let's add the number of `batrooms`, `bedrooms`, `beds` and size of the house `accommodates` to explore a potential significant prediction of our variable `price_4_nights`.
+
+```{r}
+
+# Taking model2 and adding the variables stated
+model3 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates,
+             data = working_listings)
+
+model3 %>% broom::tidy()
+  model3 %>% broom::glance()
+```
+Before we move on to analyze this third model, we will have a look at possible multicollinearity.
+
+```{r}
+car::vif(model3)
+```
+
+Looking at the multicollinearity above, GVIFs and adjusted GVIFs are smaller than 5 for all variables, indicating that there's no severe multicollinearity between variables that will considerably reduce the effectiveness of our model.
+
+We now look at how the number of bathrooms, bedrooms, beds and number of people the AirBnB accommodates affects the price.
+
+- Bathrooms: increases price by 12.8%
+- Bedrooms: increases price by 23.3%
+- Beds: decreases price by 3.8%
+- Accommodates: increases by 5.8%
+
+All effects are as expected (i.e. more bedrooms would imply a higher price). However, interestingly, a higher number of beds actually decreases the price. This may be due to the fact that simply more beds, but not more bedrooms, may imply more people crowded in the same space and therefore may be less attractive to potential travelers.
+
+```{r}
+# Taking model2 and adding the variables stated
+model4 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates +
+             host_is_superhost,
+             data = working_listings)
+
+model4 %>% broom::tidy()
+model4 %>% broom::glance()
+```
+
+Using the new variables for model 4, we have clearly reached a better model, as it explains 42.1% of our observations. However, interestingly, the superhost variable reduces the price estimate by 6.2%. This is quite unexpected as being a superhost is a positive attribute and therefore one would expect travelers to pay a premium for it. Although this estimate is significant, this is still a small percentage that could be explained by the fact that some superhosts may choose not to charge a premium for their accommodations in order to remain competitive.
+
+
+```{r}
+
+# We sometimes need to check the collinearity - to replicate for our last model
+car::vif(model4)
+
+```
+
+Again, we take a look at possible multicollinearity and conclude that GVIFs and adjusted GVIFs are smaller than 5 for all variables, thus our model will not suffer from multicollinearity.
+
+```{r}
+model5 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates +
+             host_is_superhost +
+             is_location_exact,
+             data = working_listings)
+
+model5 %>% broom::tidy()
+model5 %>% broom::glance()
+```
+
+We have now added the is_location_exact variable to the model, in order to determine whether including the exact location has an effect on the price. After accounting for the other variables, we can conclude that including the exact location of the AirBnB in its description is not a significant factor to determining the price, given the very low absolute value of its statistic (0.2792), which is less than 2.
+
+This may be due to the fact that Rio is a very touristic destination and therefore travelers often want to see all of the city, and spend most of the time visiting landmarks, and therefore do not need to know the exact location to book, but only the area.
+
+Consequently, we see no change in our R squared value from our previous model, meaning that this model still only accounts for 42% of our observations.
+
+Nevertheless, we will now take a look at how AirBnBs' prices are affected by the neighborhood, as some neighborhouds may be more popular than others and thus more expensive.
+
+```{r}
+model6 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates +
+             host_is_superhost +
+             is_location_exact +
+             cancellation_policy +
+             neighbourhood_simplified,
+             data = working_listings)
+
+model6 %>% broom::tidy()
+model6 %>% broom::glance()
+```
+
+The information above makes it clear that each neighbourhood is statistically significant, and that while both the South and West neighbourhoods are likely to increase the price per night of the AirBnB, an AirBnB in the North is likely to have a lower price. This can provide a good insight into seeing where the most popular area in Rio are, as these may usually be related to a higher price.
+
+Additionally, all are statistically significant, and therefore we see an increase in our R squared value, as it goes up to 44.4%
+
+
+```{r}
+
+# Little additional graph to explore our new variable
+ggplot(working_listings, 
+  aes(
+    x = neighbourhood_simplified, 
+    y = price_4_nights, 
+    color = neighbourhood_simplified)) + 
+  geom_boxplot() +
+  scale_y_continuous(label=dollar) +
+  labs(
+    x = "Geographic Zone",
+    y = "Price for four nights and two people",
+    title = "Differences in price among geographic areas in Rio") +
+  theme_bw() + 
+  theme(legend.position = "none")
+
+
+# Little additional graph to explore our new variable
+ggplot(working_listings, 
+  aes(
+    x = room_type,
+    y = price_4_nights,
+    color = room_type)) + 
+  geom_boxplot() +
+  scale_y_continuous(label=dollar) +
+  labs(
+    x = "Room type",
+    y = "Price for four nights and two people",
+    title = "Differences in price among room types") +
+  theme_bw() + 
+  theme(legend.position = "none")
+
+```
+
+The graph shows that the entire home/apt has the higest price for four night and two people while the shared room has the lowest one. 
+
+```{r}
+# Trying to get the highest R squared possible by adding/ removing variable
+
+# We fist attempt to add all the variables
+
+model_ALL <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates +
+             is_location_exact +
+             cancellation_policy +
+             neighbourhood_simplified +
+              host_acceptance_rate +
+               host_response_rate +
+               availability_365 +
+               is_business_travel_ready +
+               bed_type + 
+               require_guest_profile_picture +
+               host_response_time +
+               host_total_listings_count +
+               availability_30 +
+               minimum_nights +
+               instant_bookable  +
+               review_scores_location+
+               require_guest_phone_verification,
+             data = working_listings)
+
+model_ALL %>% broom::tidy()
+model_ALL %>% broom::glance()
+
+autoplot(model_ALL)
+huxreg(model5, model6, model_ALL, 
+                 statistics = c('#observations' = 'nobs', 
+                                'R squared' = 'r.squared', 
+                                'Adj. R Squared' = 'adj.r.squared', 
+                                'Residual SE' = 'sigma'), 
+                 bold_signif = 0.05, 
+                 stars = NULL
+) %>% 
+  set_caption('Comparison of models')
+
+
+# Remove insignificant variables to get the final model
+
+model7 <- lm(log_price_4_nights ~
+             prop_type_simplified + 
+             number_of_reviews + 
+             review_scores_rating +
+             room_type +
+             bathrooms +
+             bedrooms +
+             beds + 
+             accommodates +
+             is_location_exact +
+             cancellation_policy+
+             neighbourhood_simplified +
+              host_acceptance_rate +
+#               host_response_rate +
+               availability_365 +
+               is_business_travel_ready +
+#               bed_type + 
+#               require_guest_profile_picture +
+#               host_response_time +
+               host_total_listings_count +
+               availability_30 +
+               minimum_nights,
+#               instant_bookable  +
+#               review_scores_location+
+#               require_guest_phone_verification,
+             data = working_listings)
+
+model7 %>% broom::tidy()
+model7 %>% broom::glance()
+
+```
+In order to construct our final model, which provides the best estimate for the price of a 4 night stay in Rio de Janeiro, we aimed to get the highest possible value for our R squared, which represents the percentage of data point that our model explains. Initially we included all independent variables, and our criteria for excluding them was if they were insignificant. We defined a statistically insignificant variable, as one which has an absolute statistic value of less than 2, and therefore decided to exclude the following variables:
+
+- host_response_rate
+- bed_type
+- require_guest_profile_picture
+- host_response_time
+- instant_bookable
+- review_scores_location
+- require_guest_phone_verification
+
+From the Residuals vs Fitted graph, we can see that the residuals bounce randomly around the 0 line, so the assumption of linear relationship is reasonable. The horizontal band around the 0 line suggests that variances of the error terms are equal.
+The normal Q-Q graph is generally in a straight line, which is pretty good because it indicates normal distribution.
+In the Residuals vs Leverage graph, the spread of standardized residuals doesn’t change as a function of leverage, which means our model won’t suffer from heteroskedasticity or non-linearity.
+
+Creating Huxtable
+
+```{r}
+huxtable::huxreg(
+       'Model1' = model1,  
+       'Model2' = model2,  
+       'Model3' = model3,
+       'Model4' = model4,  
+       'Model5' = model5,  
+       'Model6' = model6,
+       'Final_Model' = model7, 
+       # number_format = "%.2f",
+       statistics = c('# observations' = 'nobs', 'R squared' = 'r.squared', 'Adj. R Squared' = 'adj.r.squared', 'Residual SE' = 'sigma'), 
+  bold_signif = 0.05, 
+   stars = NULL
+       ) %>% 
+  theme_article() %>% 
+  set_caption('Models used to estimate price of 4 night stay in an Airbnb in Rio de Janeiro')
+```
+
+Here we can see a comparison between our models. It is clear that model 7 is the one that showed the best R2, resulting in a coverage of 46.8% of our data.
+
+
+# Prediction of price_4_nights
+
+We will now predict the price of 2 people staying 4 nights in an airbnb in Rio by using our model7 for the linear regression. We will first have to create a "imaginary airbnb" with figurative data to input in our model and respecting the constraints asked in the assignement.
+
+```{r}
+library(lubridate)
+
+#We will first create the parameters of our "imaginary_airbnb"
+imaginary_airbnb <- tibble(prop_type_simplified = "Apartment",
+                           number_of_reviews = 200,
+                           review_scores_rating = 95,
+                           room_type = "Private room",
+                           bathrooms = 1,
+                           bedrooms = 2,
+                           beds = 2,
+                           accommodates = 2,
+                           is_location_exact = FALSE,
+                           cancellation_policy = "moderate",
+                           neighbourhood_simplified = "North",
+                           host_acceptance_rate = 80,
+                           availability_365 = 120,
+                           is_business_travel_ready = TRUE,
+                           host_total_listings_count = 3,
+                           availability_30 = 28,
+                           minimum_nights = 1)
+            
+
+#We will use the broom::argument() to predict the price of our airbnb, it will also add the SEs.
+
+model_predictions <- broom::augment(model7, 
+                                    newdata = imaginary_airbnb, 
+                                    se_fit=TRUE)
+
+#Now we will calculate the lower and upper confidence intervals to reach 95%
+
+model_predictions <- model_predictions %>% 
+  mutate(
+    lower = .fitted - 1.96 * .se.fit,
+    upper = .fitted + 1.96 * .se.fit
+  )
+
+#save lower, fiited, upper and SE values into a variable
+
+results <- model_predictions %>% select(lower,.fitted,upper, .se.fit) 
+
+#we have now to transform our prices from log(euro) to euro
+
+results <- results %>% mutate(lower = exp(lower),
+                              .fitted = exp(.fitted),
+                              upper = exp(upper),
+                              .se.fit = exp(.se.fit))
+
+results
+```
+
+As the result indicates, the 95% confidence interval for the imaginary Airbnb will be from **270 to 319 US dollars** predicted by our model.
+
+
+# Conclusion 
+In this project, we first checked and tidied data, them employed exploratory data analysis to understand the attributes of data and we further selected the relevant ones for our further analysis. 
+To generate the most accurate regression analysis, we tried and compared models with different number of variables, and ultimately confirm that the model7 is the best one as it explains most in terms of the R square.
+
+So we adopted model7 as the final model and use it to predict the price wished. The result shows we're 95% confident that the price of Airbnb for two people staying four nights in Rio will be between 420 and 496 US dollars. And we're glad to present this result to you.  
+
+
+
+
