@@ -217,5 +217,5 @@ disqusShortname = ""
 
     [[params.footer.quicklinks]]
       text = "Design: "
-      url= "https://www.html5up.net"
-      alt = "HTML5 UP"
+      url= "https://websiteilinca.netlify.app"
+      alt = "Ilinca Limited"

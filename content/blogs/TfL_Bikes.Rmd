@@ -230,7 +230,7 @@ ggsave("excess_rentals_graph2.jpg",plot=excess_rentals_graph2,width = 10,height 
 
 
 
-Should you use the mean or the median to calculate your expected rentals? Why?
+
 
 In our opinion, we should use the median to calculate the expected rentals. Just as it was pointed in the graph "Distribution of bikes hired per month", there are months that are completely skewed or that have a very low kurtosis (April to June of 2020), then, if we would use the average, the impact of these "outliers" would affect our data and produce results that don't really express the central tendency(median) about the hiring of Boris Bikes.
 
