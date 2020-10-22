@@ -9,11 +9,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-My name Ilinca Ostahie, candidate at London Business School [MFA](https://www.london.edu/masters-degrees/masters-in-financial-analysis?sc_camp=E6402B8ED1B34D3A80320FD55B304E23&gclid=Cj0KCQjw-uH6BRDQARIsAI3I-UfOH5FInJ3Sug01FeERJoBaPMBTGbdszioovGjJWyXoJ-OrbEGk0A8aAjM5EALw_wcB). I was born and raised in *Romania*.
+My name Ilinca Ostahie, candidate at London Business School MFA. I am originally from Bucharest, Romania, and speak 4 languages; Romanian, English, Spanish and French. I moved to London 3 years ago, when I decided to pursue an undergraduate degree in Economics, Finance and Management at Queen Mary, University of London.
+![Beirut](https://i.pinimg.com/originals/ff/cc/00/ffcc0045c94f08bdee463c8fc36da192.jpg)
 
 ## Exploring My Horizon
 
-
+When I moved to London, I had little clue about the career path I wanted to follow further in life, but I did know that London was the place to explore all my possibilities, and I have since encountered amazing opportunities, such as being a student in Kostis’ world-renowned data analytics class!
 
 ## Finding my Passion
 
+Outside of my school life, my hobbies include acting and aerial sports. I started theatre acting at 14 years old, time in which I studied the Stanislavski acting method, as well as the works of Anton Chekhov, Ion Luca Caragiale and others. Acting has helped me improve my interpersonal skills, as well as non-verbal communication skills, alongside allowing me to explore my more creative side.
+https://miro.medium.com/max/1400/1*JZW5ctd0sTbic7qUHboo0A.jpeg
